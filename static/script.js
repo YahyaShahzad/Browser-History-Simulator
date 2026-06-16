@@ -8,7 +8,18 @@ const currentPageText = document.getElementById("currentPageText");
 const currentPageSubtext = document.getElementById("currentPageSubtext");
 const historyList = document.getElementById("historyList");
 const stackSizeChip = document.getElementById("stackSizeChip");
+const stackCount = document.getElementById("stackCount");
 const toast = document.getElementById("toast");
+const liveStateBadge = document.getElementById("liveStateBadge");
+const themeToggle = document.getElementById("themeToggle");
+const stackRects = document.querySelectorAll(".animated-stack .stack-layer rect");
+const stackLabels = document.querySelectorAll(".animated-stack .stack-label");
+const stackGlow = document.querySelector(".stack-glow ellipse");
+
+visitBtn.disabled = addressInput.value.trim().length === 0;
+addressInput.addEventListener("input", () => {
+  visitBtn.disabled = addressInput.value.trim().length === 0;
+});
 
 let state = {
   current: null,
@@ -16,6 +27,39 @@ let state = {
   size: 0,
   has_history: false,
 };
+
+function setLoading(isLoading) {
+  const controls = [visitBtn, backBtn, clearBtn, addressInput];
+  controls.forEach((control) => {
+    control.disabled = isLoading || (control !== addressInput && control.disabled);
+  });
+  currentPagePanel.classList.toggle("loading", isLoading);
+  visitForm.classList.toggle("loading", isLoading);
+  setLiveState(
+    isLoading ? "Updating..." : `Live state: ${state.size} ${state.size === 1 ? "page" : "pages"}`,
+    isLoading ? "updating" : "normal"
+  );
+}
+
+function setTheme(themeName) {
+  const isDark = themeName === "dark";
+  document.body.classList.toggle("dark", isDark);
+  if (themeToggle) {
+    themeToggle.textContent = isDark ? "Light mode" : "Dark mode";
+  }
+  localStorage.setItem("browserHistoryTheme", themeName);
+}
+
+function toggleTheme() {
+  const currentTheme = document.body.classList.contains("dark") ? "dark" : "light";
+  setTheme(currentTheme === "dark" ? "light" : "dark");
+}
+
+function setLiveState(text, kind = "normal") {
+  if (!liveStateBadge) return;
+  liveStateBadge.textContent = text;
+  liveStateBadge.dataset.state = kind;
+}
 
 function escapeHtml(value) {
   return String(value)
@@ -69,6 +113,17 @@ function renderCurrentPage(currentUrl) {
   currentPageSubtext.textContent = "Peek operation: this URL is at the top of the stack.";
 }
 
+function animateStateUpdate() {
+  currentPagePanel.classList.add("active-animate");
+  historyList.classList.add("animate");
+
+  clearTimeout(animateStateUpdate.timer);
+  animateStateUpdate.timer = setTimeout(() => {
+    currentPagePanel.classList.remove("active-animate");
+    historyList.classList.remove("animate");
+  }, 380);
+}
+
 function renderState(nextState) {
   const history = Array.isArray(nextState.history) ? nextState.history : [];
   const current = nextState.current || history[0] || null;
@@ -82,12 +137,66 @@ function renderState(nextState) {
     has_history: hasHistory,
   };
 
-  renderCurrentPage(current);
-  renderHistoryList(history);
+  requestAnimationFrame(() => {
+    renderCurrentPage(current);
+    renderHistoryList(history);
+    updateStackVisual(history);
 
-  stackSizeChip.textContent = `${size} ${size === 1 ? "page" : "pages"}`;
-  backBtn.disabled = size <= 1;
-  clearBtn.disabled = !hasHistory;
+    stackSizeChip.textContent = `${size} ${size === 1 ? "page" : "pages"}`;
+    if (stackCount) {
+      stackCount.textContent = `${size} ${size === 1 ? "page" : "pages"}`;
+    }
+    backBtn.disabled = size <= 1;
+    clearBtn.disabled = !hasHistory;
+
+    setLiveState(`Live state: ${size} ${size === 1 ? "page" : "pages"}`);
+    animateStateUpdate();
+  });
+}
+
+function getLabelText(url) {
+  if (!url) return "";
+  return String(url)
+    .replace(/^https?:\/\//, "")
+    .replace(/\/$/, "")
+    .replace(/\?.*$/, "")
+    .replace(/#.*$/, "")
+    .trim();
+}
+
+function truncateText(text, maxLength = 24) {
+  return text.length > maxLength ? `${text.slice(0, maxLength - 3)}...` : text;
+}
+
+function updateStackVisual(history) {
+  const activeCount = Math.min(history.length, stackRects.length);
+  const visibleHistory = history.slice(0, activeCount);
+
+  stackRects.forEach((rect, index) => {
+    const isActive = index >= stackRects.length - activeCount;
+    const depthIndex = stackRects.length - index;
+    const visualIndex = stackRects.length - 1 - index;
+    const label = stackLabels[index];
+
+    rect.style.transition = "transform 260ms ease, opacity 260ms ease, fill 260ms ease";
+    rect.style.opacity = isActive ? "1" : "0.36";
+    rect.style.fill = isActive ? "url(#stackGrad)" : "url(#baseGrad)";
+    rect.style.transform = isActive ? "translateY(0px)" : `translateY(${depthIndex * 1.75}px)`;
+
+    if (label) {
+      if (isActive && visualIndex < activeCount) {
+        label.textContent = truncateText(getLabelText(visibleHistory[visualIndex] || ""));
+        label.style.opacity = "1";
+      } else {
+        label.textContent = "";
+        label.style.opacity = "0";
+      }
+    }
+  });
+
+  if (stackGlow) {
+    stackGlow.style.opacity = history.length > 0 ? "0.4" : "0";
+  }
 }
 
 async function fetchJson(url, options = {}) {
@@ -134,7 +243,7 @@ async function handleVisit(event) {
     return;
   }
 
-  visitBtn.disabled = true;
+  setLoading(true);
   try {
     const result = await fetchJson("/api/visit", {
       method: "POST",
@@ -150,7 +259,7 @@ async function handleVisit(event) {
   } catch (error) {
     setToast(error.message, "error");
   } finally {
-    visitBtn.disabled = false;
+    setLoading(false);
   }
 }
 
@@ -159,6 +268,7 @@ async function handleBack() {
     return;
   }
 
+  setLoading(true);
   try {
     const result = await fetchJson("/api/back", {
       method: "POST",
@@ -169,6 +279,8 @@ async function handleBack() {
     setToast(result.message, result.success ? "success" : "error");
   } catch (error) {
     setToast(error.message, "error");
+  } finally {
+    setLoading(false);
   }
 }
 
@@ -182,6 +294,7 @@ async function handleClear() {
     return;
   }
 
+  setLoading(true);
   try {
     const result = await fetchJson("/api/clear", {
       method: "POST",
@@ -192,12 +305,20 @@ async function handleClear() {
     setToast(result.message, "success");
   } catch (error) {
     setToast(error.message, "error");
+  } finally {
+    setLoading(false);
   }
 }
 
 visitForm.addEventListener("submit", handleVisit);
 backBtn.addEventListener("click", handleBack);
 clearBtn.addEventListener("click", handleClear);
+if (themeToggle) {
+  themeToggle.addEventListener("click", toggleTheme);
+}
+
+const savedTheme = localStorage.getItem("browserHistoryTheme") || "light";
+setTheme(savedTheme);
 
 refreshState().catch((error) => {
   renderState({ current: null, history: [], size: 0, has_history: false });

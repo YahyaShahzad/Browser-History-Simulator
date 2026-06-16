@@ -16,6 +16,10 @@
         <p class="eyebrow">Stack ADT Demo</p>
         <h1>Browser History Simulator</h1>
         <p class="intro">Visit pages, move backward with stack pop/peek, and inspect history from top to bottom in real time.</p>
+        <div class="live-state-row">
+          <span id="liveStateBadge" class="live-state-badge">Live state: initialized</span>
+          <button id="themeToggle" class="theme-toggle" type="button" aria-label="Toggle dark mode">Dark mode</button>
+        </div>
       </header>
 
       <section class="browser-frame" aria-label="Browser controls">
@@ -50,6 +54,39 @@
           <div class="card-head">
             <p class="label">History Stack</p>
             <span id="stackSizeChip" class="chip chip-muted">0 pages</span>
+          </div>
+          <div class="stack-visual">
+            <div class="stack-topline">
+              <span class="stack-title">Stack preview</span>
+              <span id="stackCount" class="stack-count">0 pages</span>
+            </div>
+            <svg viewBox="0 0 320 300" class="animated-stack" aria-hidden="true">
+              <defs>
+                <linearGradient id="stackGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#4dbf82" stop-opacity="0.98" />
+                  <stop offset="100%" stop-color="#0f5a44" stop-opacity="0.95" />
+                </linearGradient>
+                <linearGradient id="baseGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#eef6f3" stop-opacity="0.96" />
+                  <stop offset="100%" stop-color="#dbe9e0" stop-opacity="0.92" />
+                </linearGradient>
+              </defs>
+              <g class="stack-layer layer-back">
+                <rect x="44" y="216" width="232" height="40" rx="18" fill="url(#baseGrad)" stroke="rgba(15, 92, 62, 0.15)" stroke-width="1.25" />
+                <rect x="48" y="166" width="224" height="40" rx="18" fill="url(#baseGrad)" stroke="rgba(15, 92, 62, 0.16)" stroke-width="1.25" />
+                <rect x="52" y="116" width="216" height="40" rx="18" fill="url(#baseGrad)" stroke="rgba(15, 92, 62, 0.17)" stroke-width="1.25" />
+                <rect x="56" y="66" width="208" height="40" rx="18" fill="url(#stackGrad)" class="active-layer" stroke="rgba(255, 255, 255, 0.22)" stroke-width="1.4" />
+              </g>
+              <g class="stack-labels">
+                <text x="160" y="236" class="stack-label"></text>
+                <text x="160" y="186" class="stack-label"></text>
+                <text x="160" y="136" class="stack-label"></text>
+                <text x="160" y="86" class="stack-label"></text>
+              </g>
+              <g class="stack-glow">
+                <ellipse cx="160" cy="76" rx="76" ry="20" fill="rgba(71, 177, 122, 0.22)" />
+              </g>
+            </svg>
           </div>
           <div id="historyList" class="history-list" aria-live="polite">
             <div class="history-empty">History is empty</div>
